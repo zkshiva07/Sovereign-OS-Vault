@@ -1,0 +1,267 @@
+#!/usr/bin/env bash
+# Sovereign OS Vault — daily-use launcher
+#
+# After the setup wizard, this is the only command you need.
+#
+# Usage:
+#   sov                       Launch the TUI (auto-starts the bot for you)
+#   sov --connect <pda|url>   Save a Squads multisig pointer for the [m] screen
+#                             (accepts the raw PDA, or a copy-pasted squads.so URL)
+#   sov status                Show repo, bot, and config state
+#   sov bot                   Run bot in foreground (for separate-host deploys)
+#   sov bot --daemon          Start bot in background and persist
+#   sov stop                  Stop a background bot started via --daemon
+#   sov help                  This message
+
+set -uo pipefail
+
+# ── Self-locate the repo (works when symlinked from ~/.local/bin) ────────────
+REAL="$(readlink -f "$0" 2>/dev/null || echo "$0")"
+REPO="$(cd "$(dirname "$REAL")" && pwd)"
+
+if [[ ! -f "$REPO/build.zig" ]]; then
+    # Last resort: read saved path from config
+    CFG_HINT="$HOME/.config/sovereign-os-vault/launcher.conf"
+    if [[ -f "$CFG_HINT" ]]; then
+        SAVED=$(grep '^REPO=' "$CFG_HINT" 2>/dev/null | cut -d= -f2- | tr -d '"' || true)
+        [[ -n "${SAVED:-}" && -f "$SAVED/build.zig" ]] && REPO="$SAVED"
+    fi
+fi
+
+if [[ ! -f "$REPO/build.zig" ]]; then
+    echo "Error: can't locate Sovereign OS Vault repo." >&2
+    echo "Expected build.zig at: $REPO" >&2
+    echo "Run the setup wizard first, or set REPO=<path> in" >&2
+    echo "    $HOME/.config/sovereign-os-vault/launcher.conf" >&2
+    exit 1
+fi
+
+BOT_BIN="$REPO/frost-bot/target/release/frost-bot"
+TUI_BIN="$REPO/tui/target/release/sovereign-vault"
+ARMOR_BIN="$REPO/zig-out/bin/vault-armor"
+
+for bin_check in "$BOT_BIN" "$TUI_BIN" "$ARMOR_BIN"; do
+    if [[ ! -x "$bin_check" ]]; then
+        echo "Error: missing binary $bin_check" >&2
+        echo "Run ./quickstart.sh in $REPO first to build everything." >&2
+        exit 1
+    fi
+done
+
+CFG_DIR="$HOME/.config/sovereign-os-vault"
+CFG_FILE="$CFG_DIR/launcher.conf"
+mkdir -p "$CFG_DIR"
+chmod 700 "$CFG_DIR" 2>/dev/null || true
+
+# Persist where the repo lives, so a symlinked sov can find it next time
+if ! grep -q "^REPO=" "$CFG_FILE" 2>/dev/null; then
+    echo "REPO=\"$REPO\"" >> "$CFG_FILE"
+fi
+
+# Load saved config — SQUADS_MULTISIG, optional XDG_DATA_HOME sandbox path
+SQUADS_MULTISIG=""
+SANDBOX_XDG=""
+# shellcheck disable=SC1090
+[[ -f "$CFG_FILE" ]] && source "$CFG_FILE"
+
+# If launcher.conf recorded a non-default XDG sandbox at setup time,
+# export it now so the bot + TUI read/write the matching keystore. This
+# is how test sandboxes (e.g. /tmp/sov-test-data) survive across sessions.
+if [[ -n "${SANDBOX_XDG:-}" ]] && [[ -z "${XDG_DATA_HOME:-}" ]]; then
+    export XDG_DATA_HOME="$SANDBOX_XDG"
+fi
+
+# ── Helpers ──────────────────────────────────────────────────────────────────
+port_in_use() {
+    if command -v ss &>/dev/null; then
+        ss -tln 2>/dev/null | grep -qE '(127\.0\.0\.1|\*):7777[[:space:]]'
+    else
+        timeout 2 bash -c '(echo > /dev/tcp/127.0.0.1/7777) 2>/dev/null'
+    fi
+}
+
+# Extract a base58 Solana address from arbitrary input (raw PDA or squads.so URL).
+extract_pda() {
+    local input="$1"
+    echo "$input" | grep -oE '[1-9A-HJ-NP-Za-km-z]{32,44}' | head -1
+}
+
+save_setting() {
+    local key="$1" val="$2"
+    local tmp
+    tmp=$(mktemp)
+    {
+        grep -v "^${key}=" "$CFG_FILE" 2>/dev/null || true
+        echo "${key}=\"${val}\""
+    } > "$tmp"
+    mv "$tmp" "$CFG_FILE"
+    chmod 600 "$CFG_FILE"
+}
+
+# ── Subcommands ──────────────────────────────────────────────────────────────
+cmd_connect() {
+    local input="${1:-}"
+    if [[ -z "$input" ]]; then
+        echo "Usage: sov --connect <multisig-pda-or-squads.so-url>" >&2
+        echo "" >&2
+        echo "Examples:" >&2
+        echo "  sov --connect Bx2NbjxYzVqLcdfWmYZcEUgxKnExvF2nVRZdGsHaSquadsMultisigPda" >&2
+        echo "  sov --connect 'https://app.squads.so/squads/<pda>/home'" >&2
+        exit 1
+    fi
+    local pda
+    pda=$(extract_pda "$input")
+    if [[ -z "$pda" ]]; then
+        echo "Error: could not extract a Solana address from: $input" >&2
+        echo "Pass either the raw multisig PDA or a squads.so URL." >&2
+        exit 1
+    fi
+    save_setting SQUADS_MULTISIG "$pda"
+    echo "✓ saved SQUADS_MULTISIG=$pda"
+    echo "  (lives in $CFG_FILE, mode 0600)"
+    echo
+    echo "Next time you run 'sov', the [m] proposal-watch screen will use this."
+}
+
+cmd_status() {
+    echo "Repo:     $REPO"
+    echo "Config:   $CFG_FILE"
+    if [[ -n "${XDG_DATA_HOME:-}" ]]; then
+        echo "Sandbox:  $XDG_DATA_HOME   (using non-default keystore)"
+    else
+        echo "Sandbox:  ~/.local/share/sovereign-os-vault   (default / production)"
+    fi
+    if [[ -n "${SQUADS_MULTISIG:-}" ]]; then
+        echo "Squads:   $SQUADS_MULTISIG"
+    else
+        echo "Squads:   (not set — use 'sov --connect <pda-or-url>')"
+    fi
+    echo
+    if port_in_use; then
+        echo "Bot:      running on 127.0.0.1:7777"
+        pgrep -af frost-bot 2>/dev/null | sed 's/^/   /' || true
+    else
+        echo "Bot:      not running"
+    fi
+}
+
+cmd_bot() {
+    local daemon=false
+    if [[ "${1:-}" == "--daemon" ]]; then daemon=true; fi
+    if port_in_use; then
+        echo "Bot is already running on 127.0.0.1:7777."
+        exit 0
+    fi
+    if $daemon; then
+        nohup "$BOT_BIN" >/tmp/sov-bot.log 2>&1 &
+        local pid=$!
+        disown 2>/dev/null || true
+        echo "✓ bot started in background (pid $pid). Log: /tmp/sov-bot.log"
+        echo "  Stop later with: sov stop"
+    else
+        echo "Starting bot (foreground). Ctrl-C to stop."
+        exec "$BOT_BIN"
+    fi
+}
+
+cmd_stop() {
+    if ! port_in_use; then
+        echo "Bot is not running."
+        return 0
+    fi
+    local pids
+    pids=$(pgrep -f "$BOT_BIN" || true)
+    if [[ -z "$pids" ]]; then
+        echo "Port 7777 is bound but I couldn't find a matching frost-bot process."
+        echo "Investigate: ss -tlnp 2>/dev/null | grep :7777"
+        exit 1
+    fi
+    echo "Stopping bot: pids $pids"
+    kill $pids 2>/dev/null || true
+    sleep 1
+    if port_in_use; then
+        echo "  ! still alive, sending SIGKILL"
+        kill -9 $pids 2>/dev/null || true
+        sleep 1
+    fi
+    if port_in_use; then
+        echo "  ✗ failed to stop"
+        exit 1
+    fi
+    echo "✓ stopped"
+}
+
+cmd_run_tui() {
+    local started_bot=false
+    local pid=""
+
+    if ! port_in_use; then
+        echo "==> starting bot..."
+        "$BOT_BIN" >/tmp/sov-bot.log 2>&1 &
+        pid=$!
+        printf "    waiting for bot to bind 127.0.0.1:7777 "
+        for i in 1 2 3 4 5 6 7 8; do
+            sleep 1
+            printf "."
+            if ! kill -0 "$pid" 2>/dev/null; then
+                printf " [died]\n"
+                echo "    bot crashed during startup. Log tail:" >&2
+                tail -20 /tmp/sov-bot.log >&2 || true
+                exit 1
+            fi
+            if port_in_use; then
+                printf " [ready in ${i}s]\n"
+                started_bot=true
+                break
+            fi
+        done
+        if ! $started_bot; then
+            printf " [timeout]\n"
+            echo "Bot didn't bind in 8s. Log tail:" >&2
+            tail -20 /tmp/sov-bot.log >&2 || true
+            kill "$pid" 2>/dev/null || true
+            exit 1
+        fi
+        trap 'kill '"$pid"' 2>/dev/null; wait '"$pid"' 2>/dev/null || true' EXIT INT TERM
+    fi
+
+    # Launch TUI with optional SQUADS_MULTISIG
+    if [[ -n "${SQUADS_MULTISIG:-}" ]]; then
+        SQUADS_MULTISIG="$SQUADS_MULTISIG" VAULT_ARMOR_PATH="$ARMOR_BIN" "$TUI_BIN"
+    else
+        VAULT_ARMOR_PATH="$ARMOR_BIN" "$TUI_BIN"
+    fi
+}
+
+# ── Dispatch ─────────────────────────────────────────────────────────────────
+case "${1:-}" in
+    --connect|connect) shift; cmd_connect "$@" ;;
+    status)            cmd_status ;;
+    bot)               shift; cmd_bot "$@" ;;
+    stop)              cmd_stop ;;
+    help|--help|-h)
+        cat <<'EOF'
+Sovereign OS Vault — daily launcher
+
+Usage:
+  sov                       Launch the TUI (auto-starts the bot for you)
+  sov --connect <pda|url>   Save a Squads multisig pointer for [m] watch
+  sov status                Show repo, bot, and config state
+  sov bot                   Run bot in foreground (for separate-host deploys)
+  sov bot --daemon          Start bot in background and persist
+  sov stop                  Stop a background bot
+  sov help                  This message
+
+Run `sov` after the setup wizard; it handles the bot for you so you
+don't have to manage two terminals.
+
+Config lives at ~/.config/sovereign-os-vault/launcher.conf (mode 0600).
+EOF
+        ;;
+    "") cmd_run_tui ;;
+    *)
+        echo "Unknown command: $1" >&2
+        echo "Try: sov help" >&2
+        exit 1
+        ;;
+esac

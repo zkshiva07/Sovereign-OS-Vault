@@ -1,0 +1,47 @@
+# Build artifacts
+target/
+zig-out/
+.zig-cache/
+*.o
+*.a
+*.so
+*.dylib
+
+# Cargo
+**/Cargo.lock.bak
+
+# Local FROST shares & keystores — anything here would be a key leak
+keyshares/
+*.vult
+frost-share*.bin
+frost-pubkey.bin
+share*.bin
+pubkey.bin
+
+# Local bot configs (contain bot tokens)
+config.toml
+config.local.toml
+*.config.toml
+!config.example.toml
+!**/config.example.toml
+
+# Personal submission notes
+SUBMISSION.md
+NOTES.md
+.notes/
+
+# Steganography test artifacts
+*.png.tmp
+stego-test/
+
+# Editor / OS junk
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+/tmp/

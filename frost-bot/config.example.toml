@@ -1,0 +1,32 @@
+# Sovereign OS Vault — FROST bot config (example)
+#
+# Copy this file to ~/.local/share/sovereign-os-vault/frost-bot/config.toml
+# and fill in the values below. Set permissions to 0600 so other local users
+# cannot read your bot token:
+#
+#   mkdir -p ~/.local/share/sovereign-os-vault/frost-bot
+#   cp frost-bot/config.example.toml \
+#      ~/.local/share/sovereign-os-vault/frost-bot/config.toml
+#   chmod 600 ~/.local/share/sovereign-os-vault/frost-bot/config.toml
+#
+# Never commit a filled-in config — the bot token is a credential.
+
+# Telegram bot token from @BotFather (looks like "1234567890:AAFmsd...")
+bot_token = "REPLACE_WITH_YOUR_BOTFATHER_TOKEN"
+
+# Numeric Telegram user IDs allowed to approve signatures.
+# Get yours by messaging @userinfobot in Telegram.
+# You can list multiple IDs: [123456789, 987654321]
+authorized_users = [123456789]
+
+# HTTP endpoint the laptop TUI talks to. Default is loopback only — change
+# if you run the bot on a separate host (e.g. Fly.io, a Raspberry Pi).
+# The TUI defaults to http://127.0.0.1:7777, so leave this as 7777 unless
+# you also change the TUI's bot URL.
+listen_addr = "127.0.0.1:7777"
+
+# Paths to the bot's FROST share + group pubkey. Replace YOUR_USERNAME with
+# your Linux username (or use an absolute path if you prefer). These files
+# are written by `frost-keygen` during initial setup.
+share_path  = "/home/YOUR_USERNAME/.local/share/sovereign-os-vault/frost-bot/share2.bin"
+pubkey_path = "/home/YOUR_USERNAME/.local/share/sovereign-os-vault/frost-bot/pubkey.bin"

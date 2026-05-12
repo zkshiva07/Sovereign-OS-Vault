@@ -1,0 +1,46 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Sovereign OS Vault — placeholder logo
+       3 nodes (laptop / phone / bot) in a triangle around a central FROST hexagonal key.
+       Cypherpunk green on charcoal. Replace with image-gen result when ready. -->
+
+  <!-- Background -->
+  <rect width="512" height="512" fill="#0a0a0a"/>
+
+  <!-- Subtle inner panel to echo the TUI bordered look -->
+  <rect x="32" y="32" width="448" height="448" fill="none" stroke="#00ff8830" stroke-width="2" rx="16"/>
+
+  <!-- Triangle of trust-domain nodes -->
+  <!-- top: phone -->
+  <circle cx="256" cy="120" r="28" fill="none" stroke="#00ff88" stroke-width="3"/>
+  <text x="256" y="128" font-family="monospace" font-size="22" fill="#00ff88" text-anchor="middle">📱</text>
+
+  <!-- bottom-left: laptop -->
+  <circle cx="120" cy="380" r="28" fill="none" stroke="#00ff88" stroke-width="3"/>
+  <text x="120" y="388" font-family="monospace" font-size="22" fill="#00ff88" text-anchor="middle">💻</text>
+
+  <!-- bottom-right: bot -->
+  <circle cx="392" cy="380" r="28" fill="none" stroke="#00ff88" stroke-width="3"/>
+  <text x="392" y="388" font-family="monospace" font-size="22" fill="#00ff88" text-anchor="middle">🤖</text>
+
+  <!-- Connection lines forming the triangle -->
+  <line x1="256" y1="148" x2="120" y2="352" stroke="#00ff88" stroke-width="2" opacity="0.6"/>
+  <line x1="256" y1="148" x2="392" y2="352" stroke="#00ff88" stroke-width="2" opacity="0.6"/>
+  <line x1="148" y1="380" x2="364" y2="380" stroke="#00ff88" stroke-width="2" opacity="0.6"/>
+
+  <!-- Central FROST hexagonal key glyph (snowflake / threshold sig motif) -->
+  <g transform="translate(256, 256)">
+    <!-- Hexagon outline -->
+    <polygon points="0,-50 43,-25 43,25 0,50 -43,25 -43,-25"
+             fill="#0a0a0a" stroke="#00ff88" stroke-width="3"/>
+    <!-- Inner FROST: 3 lines crossing to symbolize threshold signature -->
+    <line x1="-30" y1="0" x2="30" y2="0" stroke="#00ff88" stroke-width="2"/>
+    <line x1="-15" y1="-26" x2="15" y2="26" stroke="#00ff88" stroke-width="2"/>
+    <line x1="15" y1="-26" x2="-15" y2="26" stroke="#00ff88" stroke-width="2"/>
+    <!-- Center dot -->
+    <circle cx="0" cy="0" r="5" fill="#00ff88"/>
+  </g>
+
+  <!-- Project name in lower margin -->
+  <text x="256" y="475" font-family="monospace" font-size="18" fill="#00ff88aa"
+        text-anchor="middle" letter-spacing="2">SOVEREIGN OS VAULT</text>
+</svg>
