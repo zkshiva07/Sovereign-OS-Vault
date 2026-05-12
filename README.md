@@ -38,11 +38,11 @@ That's the entire daily interface. The wizard installed `sov` to your PATH; one 
 
 ## Why this matters
 
-Solana's three biggest 2025 thefts all had the same shape: **a signing flow you couldn't fully trust.**
+A few of the biggest 2025-26 hacks all had the same shape: **a signing flow you couldn't fully trust.**
 
 - **Bybit, Feb 2025 — $1.5 B.** Cold-wallet signers approved a transaction whose UI showed one thing and on-chain payload did another. Blind-signing a wrapped call.
 - **Drift, April 2026 — $285 M.** A Squads multisig member approved a `vault_transaction_create` whose inner instruction was a `Token::Approve(u64::MAX)` to an attacker delegate. Wrapper attack — the outer call looked routine.
-- **Seedify, June 2025 — $1.2 M.** Browser-wallet approval flow signed an SPL Token approve that the user didn't see clearly. Same drainer pattern as the Phantom $1.5 M incident.
+- **Seedify, June 2025 — $1.2 M.** Compromised deployer keys.
 
 Across all three: the signer never saw what they were actually approving, and a single compromised signing flow was enough.
 
